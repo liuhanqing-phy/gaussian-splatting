@@ -40,6 +40,8 @@ try:
 except:
     SPARSE_ADAM_AVAILABLE = False
 
+from my_utils import compute_depth_loss, sobel_loss, fft_loss
+
 def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
 
     if not SPARSE_ADAM_AVAILABLE and opt.optimizer_type == "sparse_adam":
@@ -123,8 +125,21 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         else:
             ssim_value = ssim(image, gt_image)
 
-        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim_value)
+        lambda_edge = 0.02
+        L_edge = sobel_loss(image, gt_image)
 
+        lambda_scale = 0.0001
+        scales = gaussians.get_scaling
+        L_scale = torch.mean(scales)
+
+        lambda_fft = 0.1
+        L_fft = fft_loss(image, gt_image)
+
+        lambda_depth_tv = 0.05
+        pred_depth = render_pkg["depth"]
+        L_depth_tv = compute_depth_loss(pred_depth)
+        
+        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim_value) + lambda_edge * L_edge + lambda_fft * L_fft + lambda_scale * L_scale + lambda_depth_tv * L_depth_tv
         # Depth regularization
         Ll1depth_pure = 0.0
         if depth_l1_weight(iteration) > 0 and viewpoint_cam.depth_reliable:
